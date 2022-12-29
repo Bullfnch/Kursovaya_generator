@@ -92,8 +92,12 @@ uint32_t read_keypad(void);
 #define samples 64 //количество выборок
 #define PI 3.1415926
 static uint8_t flag = 0;  
-uint32_t freq = 14000; // частота сигнала
+uint32_t freq = 50000; // частота сигнала
 uint32_t sine_val[samples];
+uint32_t triangular [samples];
+uint32_t saw[samples];
+
+float max_val = 3.3; //максимальное значение напряжения на выходе
 /*
 Расчёт значений синуса
 */
@@ -101,8 +105,37 @@ void get_sineval()
 {
     for(int i=0;i<samples;i++)
     {
-        sine_val[i]=((sin(i*2*PI/samples)+1)*(4096/2));
+        sine_val[i]=(sin(i*2*PI/(samples))+1)*(4096*max_val/(2*3.3));
     }
+}
+
+/*
+Расчёт значений треугольника
+*/
+void get_triangular()
+{
+ for(int i=0;i<samples;i++)
+    {
+    if (i<=samples/2U)
+    {
+        triangular[i] = (4095/3.3*max_val*i)/(samples/2);
+    }
+    else
+    {
+        triangular[i] = (4095/3.3*max_val*(samples-i))/(samples/2);
+    }
+    }
+}
+/*
+Расчёт значений пилы
+*/
+void get_saw()
+{
+    for(int i=0;i<samples;i++)
+    {
+    saw[i]=(4095/3.3*max_val*i)/(samples-1);
+    }
+  
 }
 
 uint32_t read_keypad (void)
@@ -141,14 +174,14 @@ uint32_t read_keypad (void)
 	if (!(HAL_GPIO_ReadPin (C3_PORT, C3_PIN)))   // if the Col 3 is low
 	{
 		while (!(HAL_GPIO_ReadPin (C3_PORT, C3_PIN)));     // ожидание нажатия кнопки
-        HAL_DAC_Start_DMA(&hdac, DAC1_CHANNEL_1, saw_val, samples, DAC_ALIGN_12B_R);
+        HAL_DAC_Start_DMA(&hdac, DAC1_CHANNEL_1, saw, samples, DAC_ALIGN_12B_R);
         flag = 0;        
 	
     }
     if (!(HAL_GPIO_ReadPin (C4_PORT, C4_PIN)))   // if the Col 3 is low
 	{
 		while (!(HAL_GPIO_ReadPin (C3_PORT, C3_PIN))); // ожидание нажатия кнопки
-         HAL_DAC_Start_DMA(&hdac, DAC1_CHANNEL_1, triang_val, samples, DAC_ALIGN_12B_R);
+         HAL_DAC_Start_DMA(&hdac, DAC1_CHANNEL_1, triangular, samples, DAC_ALIGN_12B_R);
          flag = 0;        
 	
     }
@@ -193,10 +226,8 @@ int main(void)
   /* USER CODE BEGIN 2 */
     HAL_TIM_Base_Start(&htim2);
     get_sineval();
-
-//    uint8_t n =sizeof(sine_val)/sizeof(uint32_t);
-//    HAL_DAC_Start_DMA(&hdac, DAC1_CHANNEL_1, sine_val, n, DAC_ALIGN_12B_R);
-//    
+    get_triangular();
+    get_saw();    
     
   /* USER CODE END 2 */
 
@@ -205,7 +236,6 @@ int main(void)
   while (1)
   {
           read_keypad();
-//          setPWM(pwm_value);
           
     /* USER CODE END WHILE */
 
