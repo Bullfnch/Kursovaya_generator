@@ -22,6 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "math.h"
+#include "stdio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -31,20 +32,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define R1_PORT GPIOB
-#define R1_PIN GPIO_PIN_8
-
-#define C1_PORT GPIOB
-#define C1_PIN GPIO_PIN_4
-
-#define C2_PORT GPIOB
-#define C2_PIN GPIO_PIN_5
-
-#define C3_PORT GPIOB
-#define C3_PIN GPIO_PIN_6
-
-#define C4_PORT GPIOB
-#define C4_PIN GPIO_PIN_7
 
 /* USER CODE END PD */
 
@@ -61,19 +48,9 @@ TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
-uint32_t triang_val[64]= {127,255,383,511,639,767,895,1023,
-1151,1279,1407,1535,1663,1791,1919,2047,
-2175,2303,2431,2559,2687,2815,2943,3071,
-3199,3327,3455,3583,3711,3839,3967,4095,
-3967,3839,3711,3583,3455,3327,3199,3071,
-2943,2815,2687,2559,2431,2303,2175,2047,
-1919,1791,1663,1535,1407,1279,1151,1023,
-895,767,639,511,383,255,127,0};
-uint32_t saw_val[64] = {63,127,191,255,319,383,447,511,575,639,703,767,831,895,
-959,1023,1087,1151,1215,1279,1343,1407,1471,1535,1599,1663,1727,1791,1855,1919,
-1983,2047,2111,2175,2239,2303,2367,2431,2495,2559,2623,2687,2751,2815,2879,
-2943,3007,3071,3135,3199,3263,3327,3391,3455,3519,3583,3647,3711,3775,3839,
-3903,3967,4031,4095};
+
+uint32_t f_timer = F_TIM2;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -91,12 +68,16 @@ uint32_t read_keypad(void);
 /* USER CODE BEGIN 0 */
 #define samples 64 //количество выборок
 #define PI 3.1415926
+const uint8_t sampl = samples;
 static uint8_t flag = 0;  
-uint32_t freq = 50000; // частота сигнала
+const uint32_t freq = 50000; // частота сигнала
 uint32_t sine_val[samples];
 uint32_t triangular [samples];
 uint32_t saw[samples];
+int d2 = 1; // шаг для таймера 1
+int d1 = 1; // шаг для таймера 1
 
+uint32_t period_timer = F_TIM2/(sampl*freq);
 float max_val = 3.3; //максимальное значение напряжения на выходе
 /*
 Расчёт значений синуса
@@ -142,7 +123,8 @@ uint32_t read_keypad (void)
 {
 	/* Make ROW 1 LOW */
 	HAL_GPIO_WritePin (R1_PORT, R1_PIN, GPIO_PIN_RESET);  //
-
+    HAL_GPIO_WritePin (R2_PORT, R2_PIN, GPIO_PIN_SET);
+    HAL_GPIO_WritePin (R3_PORT, R3_PIN, GPIO_PIN_SET);
 	if (!(HAL_GPIO_ReadPin (C1_PORT, C1_PIN)))   // if the Col 1 is low
 	{
 		while (!(HAL_GPIO_ReadPin (C1_PORT, C1_PIN)));//ожидание нажатия кнопки
@@ -186,9 +168,34 @@ uint32_t read_keypad (void)
 	
     }
     
+    HAL_GPIO_WritePin (R1_PORT, R1_PIN, GPIO_PIN_SET);  
+    HAL_GPIO_WritePin (R2_PORT, R2_PIN, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin (R3_PORT, R3_PIN, GPIO_PIN_SET);
+    
+    if (!(HAL_GPIO_ReadPin (C3_PORT, C3_PIN)))   // if the Col 1 is low
+	{
+		while (!(HAL_GPIO_ReadPin (C3_PORT, C3_PIN)));//ожидание нажатия кнопки
+        HAL_Delay(100);
+        if(htim2.Init.Period < 65535) //увеличиваем период таймера
+        {
+        period_timer=period_timer+d2;
+        TIM2->ARR = period_timer;
+        }
+    }
+    
+    
+    if (!(HAL_GPIO_ReadPin (C4_PORT, C4_PIN)))   // if the Col 1 is low
+	{
+		while (!(HAL_GPIO_ReadPin (C4_PORT, C4_PIN)));//ожидание нажатия кнопки
+        HAL_Delay(100);
+        if(period_timer > 1) //уменьшаем период таймера
+        {
+        period_timer=period_timer-d2;
+        TIM2->ARR = period_timer;
+        }
+    }
+    
 }
-
-
 /* USER CODE END 0 */
 
 /**
@@ -198,6 +205,9 @@ uint32_t read_keypad (void)
 int main(void)
 {
   /* USER CODE BEGIN 1 */
+volatile float TIM1_Period = 100;
+volatile float TIM1_Pulse = 20;
+volatile float Zapoln = TIM1_Period/TIM1_Pulse; //Заполнение ШИМ
 
   /* USER CODE END 1 */
 
@@ -234,8 +244,63 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
-  {
+  {       
           read_keypad();
+           if (!(HAL_GPIO_ReadPin (C1_PORT, C1_PIN)))   // if the Col 1 is low
+	{   
+		while (!(HAL_GPIO_ReadPin (C1_PORT, C1_PIN)));//ожидание нажатия кнопки
+        HAL_Delay(100);
+        if(htim1.Init.Period < 65535) //увеличиваем период таймера
+        {
+        TIM1_Period=TIM1_Period+d1;
+        TIM1->ARR = TIM1_Period;
+        TIM1_Pulse = TIM1_Period/Zapoln;
+        TIM1->CCR3 = TIM1_Pulse;
+        }
+    }
+    
+    
+    if (!(HAL_GPIO_ReadPin (C2_PORT, C2_PIN)))   // if the Col 1 is low
+	{
+		while (!(HAL_GPIO_ReadPin (C2_PORT, C2_PIN)));//ожидание нажатия кнопки
+        HAL_Delay(100);
+        if(TIM1_Period > 1) //уменьшаем период таймера
+        {
+        TIM1_Period=TIM1_Period-d1;
+        TIM1->ARR = TIM1_Period;
+        TIM1_Pulse = TIM1_Period/Zapoln;
+        TIM1->CCR3 = TIM1_Pulse;
+        }
+    } 
+    HAL_GPIO_WritePin (R1_PORT, R1_PIN, GPIO_PIN_SET);  
+    HAL_GPIO_WritePin (R2_PORT, R2_PIN, GPIO_PIN_SET);
+    HAL_GPIO_WritePin (R3_PORT, R3_PIN, GPIO_PIN_RESET);
+    
+    if (!(HAL_GPIO_ReadPin (C1_PORT, C1_PIN)))   // if the Col 1 is low
+	{   
+		while (!(HAL_GPIO_ReadPin (C1_PORT, C1_PIN)));//ожидание нажатия кнопки
+        HAL_Delay(100);
+        if(TIM1_Pulse < TIM1_Period-1-d1) //увеличиваем заполнение ШИМ
+        {
+        TIM1_Pulse = TIM1_Pulse+d1;
+        TIM1->CCR3 = TIM1_Pulse;
+        Zapoln = TIM1_Period/TIM1_Pulse;
+        }
+    }
+    
+    
+    if (!(HAL_GPIO_ReadPin (C2_PORT, C2_PIN)))   // if the Col 1 is low
+	{
+		while (!(HAL_GPIO_ReadPin (C2_PORT, C2_PIN)));//ожидание нажатия кнопки
+        HAL_Delay(100);
+        if(TIM1_Pulse > 1+d1) //уменьшаем заполнение ШИМ
+        {
+        TIM1_Pulse = TIM1_Pulse-d1;
+        TIM1->CCR3 = TIM1_Pulse;
+        Zapoln = TIM1_Period/TIM1_Pulse;
+        }
+    }
+    
           
     /* USER CODE END WHILE */
 
@@ -384,7 +449,7 @@ static void MX_TIM1_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 50;
+  sConfigOC.Pulse = 20;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
@@ -394,6 +459,7 @@ static void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
+  __HAL_TIM_DISABLE_OCxPRELOAD(&htim1, TIM_CHANNEL_3);
   sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
   sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
   sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
@@ -428,7 +494,7 @@ static void MX_TIM2_Init(void)
   TIM_MasterConfigTypeDef sMasterConfig = {0};
 
   /* USER CODE BEGIN TIM2_Init 1 */
- double period_timer = F_TIMER/(sizeof(sine_val)/sizeof(uint32_t)*freq);
+ 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
   htim2.Init.Prescaler = 1-1;
@@ -489,7 +555,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14|GPIO_PIN_8|GPIO_PIN_9, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
@@ -497,17 +563,17 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : PB14 PB8 PB9 */
+  GPIO_InitStruct.Pin = GPIO_PIN_14|GPIO_PIN_8|GPIO_PIN_9;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
   /*Configure GPIO pins : PB4 PB5 PB6 PB7 */
   GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PB8 */
-  GPIO_InitStruct.Pin = GPIO_PIN_8;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
@@ -517,6 +583,8 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+
 
 /* USER CODE END 4 */
 

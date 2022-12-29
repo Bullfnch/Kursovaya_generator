@@ -70,9 +70,16 @@ void Error_Handler(void);
 #define SWO_Pin GPIO_PIN_3
 #define SWO_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
-#define F_TIMER 90000000
+#define F_TIM2 90000000
+
 #define R1_PORT GPIOB
 #define R1_PIN GPIO_PIN_8
+
+#define R2_PORT GPIOB
+#define R2_PIN GPIO_PIN_9
+
+#define R3_PORT GPIOB
+#define R3_PIN GPIO_PIN_14
 
 #define C1_PORT GPIOB
 #define C1_PIN GPIO_PIN_4
